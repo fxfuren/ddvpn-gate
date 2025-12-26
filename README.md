@@ -17,6 +17,10 @@
 
 **DDVPN Gate** — это легкий и быстрый микросервис авторизации, предназначенный для защиты подписок в системе Remnawave. Работает как `auth_request` модуль для Nginx, обеспечивая гибкий контроль доступа на основе тегов и принадлежности к squad.
 
+### 🎯 Для чего создан
+
+Микросервис создан для тех, кому нужна **2 страницы подписки** — одна для администраторов или определённого squad, а другая для остальных пользователей. Позволяет гибко управлять доступом к различным страницам подписок на основе ролей и принадлежности пользователей.
+
 ### ✨ Ключевые возможности
 
 - 🛡️ **Двухуровневая защита**: проверка по тегам и squad UUID
@@ -107,6 +111,16 @@ graph LR
 Добавьте в ваш конфигурационный файл Nginx:
 
 ```nginx
+# Статические файлы (js, css, изображения) - проксируются без проверки авторизации
+# Nginx отдаст их напрямую, не спрашивая RemnaGate (чтобы не получать 404/403)
+location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|json)$ {
+    proxy_pass http://json;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+
 # Основной location для защищенного контента
 location / {
     auth_request /_auth_check;
@@ -141,6 +155,15 @@ server {
         proxy_pass http://127.0.0.1:8099/health;
     }
 
+    # Статические файлы без проверки авторизации (ВАЖНО: должно быть ПЕРЕД location /)
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|json)$ {
+        proxy_pass http://remnawave:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
     # Защищенный контент
     location / {
         auth_request /_auth_check;
@@ -149,6 +172,8 @@ server {
         proxy_pass http://remnawave:3000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
 
     # Auth checker
