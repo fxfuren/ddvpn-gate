@@ -1,0 +1,54 @@
+Микросервис авторизации для защиты подписок Remnawave. Используется как `auth_request` в Nginx.
+
+## Логика работы
+1. Принимает `X-Original-URI` от Nginx.
+2. Парсит `shortUuid` из конца URL.
+3. Запрашивает данные пользователя через Remnawave API.
+4. Разрешает доступ (HTTP 200), если:
+   - У пользователя есть тег `ADMIN`.
+   - ИЛИ `externalSquadUuid` пользователя совпадает с `ALLOWED_SQUAD_ID`.
+5. Иначе запрещает доступ (HTTP 403).
+
+## Установка
+
+1. Создать `.env` файл на основе `.env.example`.
+2. Запустить:
+   ```
+   docker-compose up -d --build
+   ```
+
+## Интеграция с Nginx
+
+```
+location / {
+    auth_request /_auth_check;
+    proxy_pass http://json; # Remnawave Subscription Page
+    # ...
+}
+
+location = /_auth_check {
+    internal;
+    proxy_pass http://127.0.0.1:8099/auth;
+    proxy_pass_request_body off;
+    proxy_set_header Content-Length "";
+    proxy_set_header X-Original-URI $request_uri;
+}
+```
+```
+
+### Итоговая структура папки `/opt/remnagate`
+
+```text
+/opt/remnagate/
+├── app/
+│   ├── __init__.py
+│   ├── config.py
+│   └── main.py
+├── .env                  # Создаете сами на основе .env.example
+├── .env.example
+├── .gitignore
+├── docker-compose.yml    # (Опционально, если не в общем компоузе)
+├── Dockerfile
+├── README.md
+└── requirements.txt
+```

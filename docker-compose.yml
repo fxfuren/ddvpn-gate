@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  remnagate:
+    build: .
+    container_name: remnagate
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - '127.0.0.1:8099:8000'
