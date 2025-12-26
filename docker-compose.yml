@@ -1,9 +1,9 @@
 version: '3.8'
 
 services:
-  remnagate:
+  ddvpn-gate:
     build: .
-    container_name: remnagate
+    container_name: ddvpn-gate
     restart: unless-stopped
     env_file:
       - .env
