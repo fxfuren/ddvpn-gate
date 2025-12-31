@@ -120,15 +120,15 @@ async def verify_default_access(
             logger.info(f"🔓 ACCESS GRANTED (Admin Tag - Default): User '{username}'")
             return Response(status_code=status.HTTP_200_OK)
 
-        # 2. ПРОВЕРКА DEFAULT SQUAD
-        user_squad_uuid = getattr(user, 'external_squad_uuid', None)
+        # 2. ПРОВЕРКА DEFAULT SQUAD (INTERNAL)
+        user_squad_uuid = getattr(user, 'internal_squad_uuid', None)
         
         # Fallback для разных форматов ответа SDK
         if user_squad_uuid is None:
              if isinstance(user, dict):
-                 user_squad_uuid = user.get('externalSquadUuid')
-             elif hasattr(user, 'externalSquadUuid'):
-                 user_squad_uuid = user.externalSquadUuid
+                 user_squad_uuid = user.get('internalSquadUuid')
+             elif hasattr(user, 'internalSquadUuid'):
+                 user_squad_uuid = user.internalSquadUuid
 
         # ПРИВЕДЕНИЕ ТИПОВ ДЛЯ СРАВНЕНИЯ
         squad_from_api = str(user_squad_uuid).strip() if user_squad_uuid else ""
