@@ -4,6 +4,7 @@ class Settings(BaseSettings):
     remnawave_base_url: str
     remnawave_token: str
     allowed_squad_id: str
+    default_squad_id: str
     bypass_tag: str = "ADMIN"
 
     class Config:
