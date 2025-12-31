@@ -120,29 +120,39 @@ async def verify_default_access(
             logger.info(f"🔓 ACCESS GRANTED (Admin Tag - Default): User '{username}'")
             return Response(status_code=status.HTTP_200_OK)
 
-        # 2. ПРОВЕРКА DEFAULT SQUAD (INTERNAL)
-        user_squad_uuid = getattr(user, 'internal_squad_uuid', None)
+        # 2. ПРОВЕРКА DEFAULT SQUAD (INTERNAL) - проверяем массив activeInternalSquads
+        active_internal_squads = getattr(user, 'active_internal_squads', None)
         
         # Fallback для разных форматов ответа SDK
-        if user_squad_uuid is None:
+        if active_internal_squads is None:
              if isinstance(user, dict):
-                 user_squad_uuid = user.get('internalSquadUuid')
-             elif hasattr(user, 'internalSquadUuid'):
-                 user_squad_uuid = user.internalSquadUuid
+                 active_internal_squads = user.get('activeInternalSquads')
+             elif hasattr(user, 'activeInternalSquads'):
+                 active_internal_squads = user.activeInternalSquads
 
-        # ПРИВЕДЕНИЕ ТИПОВ ДЛЯ СРАВНЕНИЯ
-        squad_from_api = str(user_squad_uuid).strip() if user_squad_uuid else ""
-        squad_default = str(settings.default_squad_id).strip()
-
-        if squad_from_api == squad_default:
-            logger.info(f"✅ ACCESS GRANTED (Default Squad): User '{username}'")
-            return Response(status_code=status.HTTP_200_OK)
+        # Проверяем наличие DEFAULT_SQUAD_ID в массиве internal squads
+        if active_internal_squads:
+            squad_default = str(settings.default_squad_id).strip()
+            for squad in active_internal_squads:
+                squad_uuid = squad.get('uuid') if isinstance(squad, dict) else getattr(squad, 'uuid', None)
+                if squad_uuid and str(squad_uuid).strip() == squad_default:
+                    logger.info(f"✅ ACCESS GRANTED (Default Squad): User '{username}'")
+                    return Response(status_code=status.HTTP_200_OK)
         
-        # Отказ
+        # Отказ - выводим все internal squads пользователя для отладки
+        squad_list = []
+        if active_internal_squads:
+            for squad in active_internal_squads:
+                squad_uuid = squad.get('uuid') if isinstance(squad, dict) else getattr(squad, 'uuid', None)
+                squad_name = squad.get('name') if isinstance(squad, dict) else getattr(squad, 'name', 'Unknown')
+                if squad_uuid:
+                    squad_list.append(f"{squad_name} ({squad_uuid})")
+        
         logger.warning(
             f"⛔ ACCESS DENIED (Default): User '{username}'\n"
             f"   Tag: '{user_tag}' (Expected: '{settings.bypass_tag}')\n"
-            f"   Squad: '{squad_from_api}' (Expected Default: '{squad_default}')"
+            f"   Internal Squads: {', '.join(squad_list) if squad_list else 'None'}\n"
+            f"   Expected Squad ID: '{settings.default_squad_id}'"
         )
         return Response(status_code=status.HTTP_403_FORBIDDEN)
 
