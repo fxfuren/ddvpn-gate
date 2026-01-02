@@ -1,15 +1,16 @@
-import logging
 from typing import Annotated
 from fastapi import FastAPI, Header, Response, status
 from remnawave import RemnawaveSDK
+from loguru import logger
 from app.config import settings
 
-# Настраиваем логирование
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+# Настраиваем loguru
+logger.remove()  # Удаляем стандартный хендлер
+logger.add(
+    sink=lambda msg: print(msg, end=""),
+    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>",
+    level="INFO"
 )
-logger = logging.getLogger("remnagate")
 
 app = FastAPI(title="RemnaGate", version="1.0.5")
 
@@ -27,14 +28,17 @@ async def verify_access(
     x_original_uri: Annotated[str | None, Header()] = None
 ):
     if not x_original_uri:
+        logger.warning("⛔ No X-Original-URI header provided")
         return Response(status_code=status.HTTP_403_FORBIDDEN)
+
+    logger.info(f"🔍 Incoming request: {x_original_uri}")
 
     try:
         # Парсим shortUuid из URL (берем последний сегмент)
         clean_path = x_original_uri.split('?')[0].rstrip('/')
         short_uuid = clean_path.split('/')[-1]
     except Exception:
-        logger.error(f"Failed to parse URI: {x_original_uri}")
+        logger.error(f"❌ Failed to parse URI: {x_original_uri}")
         return Response(status_code=status.HTTP_403_FORBIDDEN)
 
     # Простая валидация длины
@@ -84,7 +88,7 @@ async def verify_access(
     except Exception as e:
         # Не спамим в лог ошибками 404 (обычно это запросы favicon/js)
         if "404" not in str(e):
-             logger.error(f"API Error checking {short_uuid}: {str(e)}")
+             logger.error(f"❌ API Error checking {short_uuid}: {str(e)}")
         return Response(status_code=status.HTTP_403_FORBIDDEN)
 
 @app.get("/auth-default")
@@ -93,14 +97,17 @@ async def verify_default_access(
 ):
     """Проверка доступа для обычных подписок (default squad)"""
     if not x_original_uri:
+        logger.warning("⛔ No X-Original-URI header provided (default)")
         return Response(status_code=status.HTTP_403_FORBIDDEN)
+
+    logger.info(f"🔍 Incoming request (default): {x_original_uri}")
 
     try:
         # Парсим shortUuid из URL (берем последний сегмент)
         clean_path = x_original_uri.split('?')[0].rstrip('/')
         short_uuid = clean_path.split('/')[-1]
     except Exception:
-        logger.error(f"Failed to parse URI: {x_original_uri}")
+        logger.error(f"❌ Failed to parse URI: {x_original_uri}")
         return Response(status_code=status.HTTP_403_FORBIDDEN)
 
     # Простая валидация длины
@@ -159,5 +166,5 @@ async def verify_default_access(
     except Exception as e:
         # Не спамим в лог ошибками 404 (обычно это запросы favicon/js)
         if "404" not in str(e):
-             logger.error(f"API Error checking {short_uuid} (default): {str(e)}")
+             logger.error(f"❌ API Error checking {short_uuid} (default): {str(e)}")
         return Response(status_code=status.HTTP_403_FORBIDDEN)
