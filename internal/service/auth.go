@@ -32,6 +32,27 @@ func NewAuthService(client *client.RemnawaveClient, cfg *config.Config, logger *
 	}
 }
 
+// isTagAllowed проверяет, есть ли тег пользователя в списке разрешенных тегов
+func (s *AuthService) isTagAllowed(userTag string) bool {
+	if userTag == "" {
+		return false
+	}
+
+	// Парсим список разрешенных тегов из конфига
+	allowedTags := strings.Split(s.cfg.BypassTag, ",")
+
+	userTagTrimmed := strings.TrimSpace(userTag)
+
+	// Проверяем каждый разрешенный тег
+	for _, allowedTag := range allowedTags {
+		if strings.TrimSpace(allowedTag) == userTagTrimmed {
+			return true
+		}
+	}
+
+	return false
+}
+
 // ParseShortUUID извлекает shortUUID из URI
 func (s *AuthService) ParseShortUUID(uri string) (string, error) {
 	// Убираем query параметры
@@ -71,8 +92,8 @@ func (s *AuthService) VerifyAccess(ctx context.Context, shortUUID string) AuthRe
 	}
 
 	// 1. ПРОВЕРКА ADMIN (TAG)
-	if user.Tag != "" && strings.TrimSpace(user.Tag) == strings.TrimSpace(s.cfg.BypassTag) {
-		s.logger.Infof("🔓 ACCESS GRANTED (Admin Tag): User '%s'", username)
+	if s.isTagAllowed(user.Tag) {
+		s.logger.Infof("🔓 ACCESS GRANTED (Admin Tag): User '%s' (Tag: '%s')", username, user.Tag)
 		return AuthResult{Allowed: true, Reason: "admin_tag", User: username}
 	}
 
@@ -109,8 +130,8 @@ func (s *AuthService) VerifyDefaultAccess(ctx context.Context, shortUUID string)
 	}
 
 	// 1. ПРОВЕРКА ADMIN (TAG)
-	if user.Tag != "" && strings.TrimSpace(user.Tag) == strings.TrimSpace(s.cfg.BypassTag) {
-		s.logger.Infof("🔓 ACCESS GRANTED (Admin Tag - Default): User '%s'", username)
+	if s.isTagAllowed(user.Tag) {
+		s.logger.Infof("🔓 ACCESS GRANTED (Admin Tag - Default): User '%s' (Tag: '%s')", username, user.Tag)
 		return AuthResult{Allowed: true, Reason: "admin_tag", User: username}
 	}
 
