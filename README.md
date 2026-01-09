@@ -4,8 +4,7 @@
 
 ### Микросервис авторизации для защиты подписок Remnawave
 
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.109.0-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?style=for-the-badge&logo=go&logoColor=white)](https://go.dev/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
 [![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
 
@@ -15,25 +14,28 @@
 
 ## 📋 Описание
 
-**DDVPN Gate** — это легкий и быстрый микросервис авторизации, предназначенный для защиты подписок в системе Remnawave. Работает как `auth_request` модуль для Nginx, обеспечивая гибкий контроль доступа на основе тегов и принадлежности к squad.
+**DDVPN Gate** — это легкий и быстрый микросервис авторизации, написанный на Go, предназначенный для защиты подписок в системе Remnawave. Работает как `auth_request` модуль для Nginx, обеспечивая гибкий контроль доступа на основе тегов и принадлежности к squad.
 
 ### 🎯 Для чего создан
 
 Микросервис создан для **защиты дополнительных доменов** и предотвращения несанкционированного доступа. Основная цель — не позволить пользователям получать подписки через альтернативные домены, подменяя адреса.
 
 **Ключевые функции:**
+
 - 🔒 **Защита доменов**: Предотвращает доступ к подпискам через неавторизованные домены
 - 👥 **Контроль доступа**: Разграничение по тегам (ADMIN) и принадлежности к squad
 - 🛡️ **Безопасность**: Блокирует попытки обхода системы подписок
 - 📄 **Гибкость**: Поддержка различных сценариев использования (например, разные страницы подписок)
+- ⚡ **Производительность**: Написан на Go для максимальной скорости
 
 ### ✨ Ключевые возможности
 
 - 🛡️ **Двухуровневая защита**: проверка по тегам и squad UUID
-- ⚡ **Высокая производительность**: асинхронная обработка запросов
+- ⚡ **Высокая производительность**: написан на Go с минимальным потреблением ресурсов
 - 🔌 **Простая интеграция**: работает с Nginx через auth_request
 - 🐳 **Docker Ready**: готовый образ для быстрого развертывания
 - 📊 **Подробное логирование**: отслеживание всех попыток доступа
+- 🔄 **Graceful Shutdown**: корректное завершение работы
 
 ---
 
@@ -71,6 +73,9 @@ REMNAWAVE_TOKEN=ваш_длинный_токен_jwt
 
 # UUID сквада, которому разрешен доступ (White List)
 ALLOWED_SQUAD_ID=00000000-0000-0000-0000-000000000000
+
+# UUID дефолтного сквада для обычных подписок
+DEFAULT_SQUAD_ID=11111111-1111-1111-1111-111111111111
 
 # Тег, дающий доступ в обход проверки сквада (по умолчанию ADMIN)
 BYPASS_TAG=ADMIN
@@ -118,7 +123,6 @@ graph LR
 
 ```nginx
 # Статические файлы (js, css, изображения) - проксируются без проверки авторизации
-# Nginx отдаст их напрямую, не выполняя проверку авторизации (чтобы не получать 404/403)
 location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|json)$ {
     proxy_pass http://json;
     proxy_set_header Host $host;
@@ -131,8 +135,7 @@ location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|json)$ {
 location / {
     auth_request /_auth_check;
     proxy_pass http://json; # Remnawave Subscription Page
-    
-    # Дополнительные настройки прокси
+
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -142,54 +145,10 @@ location / {
 # Internal location для проверки авторизации
 location = /_auth_check {
     internal;
-    proxy_pass http://127.0.0.1:8099/auth;
+    proxy_pass http://ddvpn-gate:8000/auth;
     proxy_pass_request_body off;
     proxy_set_header Content-Length "";
     proxy_set_header X-Original-URI $request_uri;
-}
-```
-
-### Пример полной конфигурации сервера
-
-```nginx
-server {
-    listen 80;
-    server_name your-domain.com;
-
-    # Health check endpoint (опционально)
-    location /health {
-        proxy_pass http://127.0.0.1:8099/health;
-    }
-
-    # Статические файлы без проверки авторизации (ВАЖНО: должно быть ПЕРЕД location /)
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|json)$ {
-        proxy_pass http://remnawave:3000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    # Защищенный контент
-    location / {
-        auth_request /_auth_check;
-        auth_request_set $auth_status $upstream_status;
-        
-        proxy_pass http://remnawave:3000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    # Auth checker
-    location = /_auth_check {
-        internal;
-        proxy_pass http://127.0.0.1:8099/auth;
-        proxy_pass_request_body off;
-        proxy_set_header Content-Length "";
-        proxy_set_header X-Original-URI $request_uri;
-    }
 }
 ```
 
@@ -199,17 +158,31 @@ server {
 
 ```text
 ddvpn-gate/
-├── app/
-│   ├── __init__.py
-│   ├── config.py          # Конфигурация приложения
-│   └── main.py            # Основной код приложения
-├── .env                   # Переменные окружения (создайте сами)
-├── .env.example           # Пример конфигурации
+├── cmd/
+│   └── server/
+│       └── main.go            # Точка входа приложения
+├── internal/
+│   ├── client/
+│   │   └── remnawave.go       # Клиент Remnawave API
+│   ├── config/
+│   │   └── config.go          # Конфигурация приложения
+│   ├── handler/
+│   │   ├── auth.go            # HTTP обработчики авторизации
+│   │   └── health.go          # Health check обработчик
+│   ├── logger/
+│   │   └── logger.go          # Настройка логирования
+│   ├── router/
+│   │   └── router.go          # HTTP роутер
+│   └── service/
+│       ├── auth.go            # Бизнес-логика авторизации
+│       └── errors.go          # Определения ошибок
+├── .env.example               # Пример конфигурации
 ├── .gitignore
-├── docker-compose.yml     # Docker Compose конфигурация
-├── Dockerfile             # Образ Docker
-├── README.md              # Документация
-└── requirements.txt       # Python зависимости
+├── docker-compose.yml         # Docker Compose конфигурация
+├── Dockerfile                 # Docker образ
+├── go.mod                     # Go модуль
+├── go.sum                     # Контрольные суммы зависимостей
+└── README.md                  # Документация
 ```
 
 ---
@@ -220,7 +193,7 @@ ddvpn-gate/
 
 ```bash
 # Установите зависимости
-pip install -r requirements.txt
+go mod download
 
 # Создайте .env файл
 cp .env.example .env
@@ -229,7 +202,14 @@ cp .env.example .env
 nano .env
 
 # Запустите сервер
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+go run ./cmd/server
+```
+
+### Сборка
+
+```bash
+# Сборка бинарного файла
+go build -o ddvpn-gate ./cmd/server
 ```
 
 ### Проверка работоспособности
@@ -287,10 +267,11 @@ docker-compose logs -f ddvpn-gate
 
 ## 📊 API Endpoints
 
-| Endpoint | Метод | Описание |
-|----------|-------|----------|
-| `/health` | GET | Health check, возвращает статус сервиса |
-| `/auth` | GET | Проверка авторизации (используется Nginx) |
+| Endpoint        | Метод | Описание                                                    |
+| --------------- | ----- | ----------------------------------------------------------- |
+| `/health`       | GET   | Health check, возвращает статус сервиса                     |
+| `/auth`         | GET   | Проверка авторизации по external squad (используется Nginx) |
+| `/auth-default` | GET   | Проверка авторизации по default internal squad              |
 
 ---
 
