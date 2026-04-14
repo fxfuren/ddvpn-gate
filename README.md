@@ -136,10 +136,7 @@ location / {
     auth_request /_auth_check;
     proxy_pass http://json; # Remnawave Subscription Page
 
-<<<<<<< HEAD
     # Дополнительные настройки прокси
-=======
->>>>>>> df4a428ab40e5da0568666cb378e17be784819f5
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -156,7 +153,6 @@ location = /_auth_check {
 }
 ```
 
-<<<<<<< HEAD
 ### Пример полной конфигурации сервера
 
 ```nginx
@@ -260,9 +256,6 @@ server {
 - `127.0.0.1:8099` — это порт хоста, проброшенный к сервису `ddvpn-gate`
 
 Такой вариант удобен, когда backend у нескольких доменов один и тот же, а отличается только тип проверки доступа.
-
-=======
->>>>>>> df4a428ab40e5da0568666cb378e17be784819f5
 ---
 
 ## 📁 Структура проекта
@@ -378,18 +371,11 @@ docker-compose logs -f ddvpn-gate
 
 ## 📊 API Endpoints
 
-<<<<<<< HEAD
-| Endpoint  | Метод | Описание                                  |
-| --------- | ----- | ----------------------------------------- |
-| `/health` | GET   | Health check, возвращает статус сервиса   |
-| `/auth`   | GET   | Проверка авторизации (используется Nginx) |
-=======
 | Endpoint        | Метод | Описание                                                    |
 | --------------- | ----- | ----------------------------------------------------------- |
 | `/health`       | GET   | Health check, возвращает статус сервиса                     |
 | `/auth`         | GET   | Проверка авторизации по external squad (используется Nginx) |
 | `/auth-default` | GET   | Проверка авторизации по default internal squad              |
->>>>>>> df4a428ab40e5da0568666cb378e17be784819f5
 
 ---
 
