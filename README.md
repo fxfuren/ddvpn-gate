@@ -22,6 +22,7 @@
 Микросервис создан для **защиты дополнительных доменов** и предотвращения несанкционированного доступа. Основная цель — не позволить пользователям получать подписки через альтернативные домены, подменяя адреса.
 
 **Ключевые функции:**
+
 - 🔒 **Защита доменов**: Предотвращает доступ к подпискам через неавторизованные домены
 - 👥 **Контроль доступа**: Разграничение по тегам (ADMIN) и принадлежности к squad
 - 🛡️ **Безопасность**: Блокирует попытки обхода системы подписок
@@ -131,7 +132,7 @@ location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|json)$ {
 location / {
     auth_request /_auth_check;
     proxy_pass http://json; # Remnawave Subscription Page
-    
+
     # Дополнительные настройки прокси
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
@@ -174,7 +175,7 @@ server {
     location / {
         auth_request /_auth_check;
         auth_request_set $auth_status $upstream_status;
-        
+
         proxy_pass http://remnawave:3000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -192,6 +193,66 @@ server {
     }
 }
 ```
+
+### Несколько доменов без дублирования конфигурации
+
+Если один домен должен проверяться через `/auth` (по `externalSquadUuid`), а другой через `/auth-default` (по `activeInternalSquads` и `DEFAULT_SQUAD_ID`), это можно описать без дублирования `server`-блока.
+
+Разместите `map` в контексте `http`, а не внутри `server`:
+
+```nginx
+map $host $ddvpn_auth_path {
+    default               /auth;
+    whitelist.example.com /auth;
+    sub.example.com       /auth-default;
+}
+
+server {
+    server_name whitelist.example.com sub.example.com;
+    listen unix:/dev/shm/nginx.sock ssl proxy_protocol;
+    http2 on;
+
+    ssl_certificate "/etc/nginx/ssl/example.com/fullchain.pem";
+    ssl_certificate_key "/etc/nginx/ssl/example.com/privkey.pem";
+    ssl_trusted_certificate "/etc/nginx/ssl/example.com/fullchain.pem";
+
+    add_header X-Robots-Tag "noindex, nofollow, noarchive, nosnippet, noimageindex" always;
+
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|json)$ {
+        proxy_pass http://127.0.0.1:3010;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location / {
+        auth_request /_auth_check;
+        proxy_pass http://127.0.0.1:3010;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location = /_auth_check {
+        internal;
+        proxy_pass http://127.0.0.1:8099$ddvpn_auth_path;
+        proxy_pass_request_body off;
+        proxy_set_header Content-Length "";
+        proxy_set_header X-Original-URI $request_uri;
+    }
+}
+```
+
+В этом примере:
+
+- `whitelist.example.com` использует `/auth`
+- `sub.example.com` использует `/auth-default`
+- `127.0.0.1:8099` — это порт хоста, проброшенный к сервису `ddvpn-gate`
+
+Такой вариант удобен, когда backend у нескольких доменов один и тот же, а отличается только тип проверки доступа.
 
 ---
 
@@ -287,10 +348,10 @@ docker-compose logs -f ddvpn-gate
 
 ## 📊 API Endpoints
 
-| Endpoint | Метод | Описание |
-|----------|-------|----------|
-| `/health` | GET | Health check, возвращает статус сервиса |
-| `/auth` | GET | Проверка авторизации (используется Nginx) |
+| Endpoint  | Метод | Описание                                  |
+| --------- | ----- | ----------------------------------------- |
+| `/health` | GET   | Health check, возвращает статус сервиса   |
+| `/auth`   | GET   | Проверка авторизации (используется Nginx) |
 
 ---
 
