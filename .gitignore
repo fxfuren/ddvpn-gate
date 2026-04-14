@@ -1,16 +1,16 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
+# Go
+*.exe
+*.exe~
+*.dll
+*.dylib
+*.test
+*.out
+ddvpn-gate
+/bin/
+/vendor/
 
 # Environment variables
 .env
-
-# Virtual Environment
-venv/
-env/
-.venv/
 
 # Docker
 docker-compose.override.yml
@@ -23,3 +23,7 @@ docker-compose.override.yml
 
 # Logs
 *.log
+
+# OS
+.DS_Store
+Thumbs.db
