@@ -72,16 +72,6 @@ func (h *AuthHandler) VerifyDefaultAccess(w http.ResponseWriter, r *http.Request
 
 	h.logger.Infof("🔍 Incoming request (default): %s", originalURI)
 
-	clientResult := h.authService.VerifyClientAccess(service.ClientRequest{
-		Accept:    r.Header.Get("Accept"),
-		UserAgent: r.UserAgent(),
-		DeviceOS:  r.Header.Get("X-Device-OS"),
-	})
-	if !clientResult.Allowed {
-		w.WriteHeader(http.StatusForbidden)
-		return
-	}
-
 	// Парсим shortUUID из URI
 	shortUUID, err := h.authService.ParseShortUUID(originalURI)
 	if err != nil {
