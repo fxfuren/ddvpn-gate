@@ -16,20 +16,22 @@ type Config struct {
 	RemnawaveToken   string
 
 	// Access control settings
-	AllowedSquadID string
-	DefaultSquadID string
-	BypassTag      string
+	AllowedSquadID    string
+	DefaultSquadID    string
+	BypassTag         string
+	AllowedClientApps []string
 }
 
 // Load загружает конфигурацию из переменных окружения
 func Load() (*Config, error) {
 	cfg := &Config{
-		ServerPort:       getEnv("SERVER_PORT", "8000"),
-		RemnawaveBaseURL: getEnv("REMNAWAVE_BASE_URL", ""),
-		RemnawaveToken:   getEnv("REMNAWAVE_TOKEN", ""),
-		AllowedSquadID:   getEnv("ALLOWED_SQUAD_ID", ""),
-		DefaultSquadID:   getEnv("DEFAULT_SQUAD_ID", ""),
-		BypassTag:        getEnv("BYPASS_TAG", "ADMIN"),
+		ServerPort:        getEnv("SERVER_PORT", "8000"),
+		RemnawaveBaseURL:  getEnv("REMNAWAVE_BASE_URL", ""),
+		RemnawaveToken:    getEnv("REMNAWAVE_TOKEN", ""),
+		AllowedSquadID:    getEnv("ALLOWED_SQUAD_ID", ""),
+		DefaultSquadID:    getEnv("DEFAULT_SQUAD_ID", ""),
+		BypassTag:         getEnv("BYPASS_TAG", "ADMIN"),
+		AllowedClientApps: parseCSVEnv(getEnv("ALLOWED_CLIENT_APPS", "")),
 	}
 
 	if err := cfg.validate(); err != nil {
@@ -55,6 +57,9 @@ func (c *Config) validate() error {
 	if c.DefaultSquadID == "" {
 		missing = append(missing, "DEFAULT_SQUAD_ID")
 	}
+	if len(c.AllowedClientApps) == 0 {
+		missing = append(missing, "ALLOWED_CLIENT_APPS")
+	}
 
 	if len(missing) > 0 {
 		return fmt.Errorf("missing required environment variables: %s", strings.Join(missing, ", "))
@@ -69,4 +74,18 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+func parseCSVEnv(value string) []string {
+	var items []string
+
+	for _, item := range strings.Split(value, ",") {
+		normalized := strings.ToLower(strings.TrimSpace(item))
+		if normalized == "" {
+			continue
+		}
+		items = append(items, normalized)
+	}
+
+	return items
 }

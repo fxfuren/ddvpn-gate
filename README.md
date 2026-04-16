@@ -79,6 +79,10 @@ DEFAULT_SQUAD_ID=11111111-1111-1111-1111-111111111111
 
 # Тег, дающий доступ в обход проверки сквада (по умолчанию ADMIN)
 BYPASS_TAG=ADMIN
+
+# Клиентские приложения, которым разрешен доступ к подписке
+# Браузеры с Accept: text/html пропускаются отдельно
+ALLOWED_CLIENT_APPS=Happ,v2raytun
 ```
 
 4️⃣ **Запустите сервис:**
@@ -96,22 +100,26 @@ docker-compose up -d --build
 ```mermaid
 graph LR
     A[Nginx] -->|X-Original-URI| B[DDVPN Gate]
-    B -->|Parse shortUuid| C[Remnawave API]
-    C -->|User Data| D{Проверка доступа}
-    D -->|Tag = ADMIN| E[✅ HTTP 200 OK]
-    D -->|Squad Match| E
-    D -->|Нет совпадений| F[⛔ HTTP 403 Forbidden]
+    B -->|Accept / User-Agent / X-Device-OS| C{Проверка клиента}
+    C -->|Browser или mobile client| D[Parse shortUuid]
+    C -->|Desktop / unknown client| G[⛔ HTTP 403 Forbidden]
+    D --> E[Remnawave API]
+    E -->|User Data| F{Проверка доступа}
+    F -->|Tag = ADMIN| H[✅ HTTP 200 OK]
+    F -->|Squad Match| H
+    F -->|Нет совпадений| G
 ```
 
 ### Алгоритм проверки доступа:
 
 1. 📥 **Получение запроса**: Принимает заголовок `X-Original-URI` от Nginx
-2. 🔍 **Парсинг UUID**: Извлекает `shortUuid` из конца URL
-3. 🌐 **API запрос**: Получает данные пользователя через Remnawave API
-4. ✅ **Проверка доступа**: Разрешает доступ (HTTP 200), если:
+2. 🛡️ **Проверка клиента**: Разрешает браузеры (`Accept: text/html`) и только мобильные клиенты из `ALLOWED_CLIENT_APPS` на `iOS` или `Android`
+3. 🔍 **Парсинг UUID**: Извлекает `shortUuid` из конца URL
+4. 🌐 **API запрос**: Получает данные пользователя через Remnawave API
+5. ✅ **Проверка доступа**: Разрешает доступ (HTTP 200), если:
    - У пользователя есть тег `ADMIN` (или другой указанный в `BYPASS_TAG`)
    - **ИЛИ** `externalSquadUuid` пользователя совпадает с `ALLOWED_SQUAD_ID`
-5. ⛔ **Запрет доступа**: В противном случае возвращает HTTP 403
+6. ⛔ **Запрет доступа**: В противном случае возвращает HTTP 403
 
 ---
 
@@ -345,6 +353,7 @@ docker-compose logs -f ddvpn-gate
 - 🔐 **Internal endpoints**: Используйте `internal` директиву в Nginx для `/_auth_check`
 - 🌐 **Bind адрес**: По умолчанию сервис привязан к `127.0.0.1`, доступен только локально
 - 📝 **Логирование**: Все попытки доступа логируются для аудита
+- 📱 **Фильтр клиентов**: Разрешайте только доверенные мобильные приложения через `ALLOWED_CLIENT_APPS`
 
 ---
 
@@ -361,6 +370,8 @@ docker-compose logs -f ddvpn-gate
 - Убедитесь, что `REMNAWAVE_TOKEN` действителен
 - Проверьте, что `REMNAWAVE_BASE_URL` доступен из контейнера
 - Проверьте формат `ALLOWED_SQUAD_ID` (должен быть UUID)
+- Проверьте, что приложение входит в `ALLOWED_CLIENT_APPS`
+- Проверьте, что клиент отправляет `User-Agent`/`X-Device-OS` с `ios` или `android`
 
 ### Nginx не передает заголовок X-Original-URI
 

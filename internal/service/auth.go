@@ -16,6 +16,13 @@ type AuthResult struct {
 	User    string
 }
 
+// ClientRequest содержит заголовки, влияющие на доступ клиента.
+type ClientRequest struct {
+	Accept    string
+	UserAgent string
+	DeviceOS  string
+}
+
 // AuthService предоставляет методы для проверки авторизации
 type AuthService struct {
 	client *client.RemnawaveClient
@@ -53,6 +60,45 @@ func (s *AuthService) isTagAllowed(userTag string) bool {
 	return false
 }
 
+// isClientAllowed проверяет, разрешено ли приложение клиента.
+func (s *AuthService) isClientAllowed(clientApp string) bool {
+	if clientApp == "" {
+		return false
+	}
+
+	for _, allowedClient := range s.cfg.AllowedClientApps {
+		if allowedClient == clientApp {
+			return true
+		}
+	}
+
+	return false
+}
+
+// VerifyClientAccess проверяет, можно ли обслуживать запрос по client headers.
+func (s *AuthService) VerifyClientAccess(req ClientRequest) AuthResult {
+	if isBrowserRequest(req.Accept) {
+		return AuthResult{Allowed: true, Reason: "browser_request"}
+	}
+
+	clientApp := detectClientApp(req.UserAgent)
+	platform := detectClientPlatform(req.DeviceOS, req.UserAgent)
+
+	if !s.isClientAllowed(clientApp) {
+		s.logger.Warnf("⛔ ACCESS DENIED (Client App): User-Agent '%s', detected client '%s', allowed clients: %s",
+			req.UserAgent, clientApp, strings.Join(s.cfg.AllowedClientApps, ", "))
+		return AuthResult{Allowed: false, Reason: "client_app_not_allowed"}
+	}
+
+	if !isMobilePlatform(platform) {
+		s.logger.Warnf("⛔ ACCESS DENIED (Client Platform): User-Agent '%s', X-Device-OS '%s', detected platform '%s'",
+			req.UserAgent, req.DeviceOS, platform)
+		return AuthResult{Allowed: false, Reason: "client_platform_not_allowed"}
+	}
+
+	return AuthResult{Allowed: true, Reason: "mobile_client_allowed"}
+}
+
 // ParseShortUUID извлекает shortUUID из URI
 func (s *AuthService) ParseShortUUID(uri string) (string, error) {
 	// Убираем query параметры
@@ -72,6 +118,73 @@ func (s *AuthService) ParseShortUUID(uri string) (string, error) {
 	}
 
 	return shortUUID, nil
+}
+
+func isBrowserRequest(acceptHeader string) bool {
+	return strings.Contains(strings.ToLower(acceptHeader), "text/html")
+}
+
+func detectClientApp(userAgent string) string {
+	ua := strings.TrimSpace(strings.ToLower(userAgent))
+	if ua == "" {
+		return ""
+	}
+
+	parts := strings.Split(ua, "/")
+	if len(parts) == 0 {
+		return ""
+	}
+
+	return strings.TrimSpace(parts[0])
+}
+
+func detectClientPlatform(deviceOS, userAgent string) string {
+	if platform := normalizePlatform(deviceOS); platform != "" {
+		return platform
+	}
+
+	lowerUA := strings.ToLower(userAgent)
+	replacer := strings.NewReplacer(
+		"/", " ",
+		"(", " ",
+		")", " ",
+		";", " ",
+		",", " ",
+		"_", " ",
+	)
+
+	for _, token := range strings.Fields(replacer.Replace(lowerUA)) {
+		if platform := normalizePlatform(token); platform != "" {
+			return platform
+		}
+	}
+
+	return ""
+}
+
+func normalizePlatform(value string) string {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+
+	switch {
+	case normalized == "":
+		return ""
+	case strings.Contains(normalized, "android"):
+		return "android"
+	case strings.Contains(normalized, "ios"), strings.Contains(normalized, "iphone"), strings.Contains(normalized, "ipad"):
+		return "ios"
+	case strings.Contains(normalized, "windows"):
+		return "windows"
+	case strings.Contains(normalized, "mac"), strings.Contains(normalized, "darwin"), strings.Contains(normalized, "osx"):
+		return "macos"
+	case strings.Contains(normalized, "linux"):
+		return "linux"
+	default:
+		return ""
+	}
+}
+
+func isMobilePlatform(platform string) bool {
+	return platform == "ios" || platform == "android"
 }
 
 // VerifyAccess проверяет доступ пользователя (для /auth endpoint)
