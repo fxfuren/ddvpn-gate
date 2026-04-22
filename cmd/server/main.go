@@ -20,7 +20,7 @@ import (
 
 const (
 	appName    = "RemnaGate"
-	appVersion = "2.0.0"
+	appVersion = "2.0.1"
 )
 
 func main() {
