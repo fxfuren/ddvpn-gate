@@ -14,6 +14,7 @@ type Config struct {
 	// Remnawave settings
 	RemnawaveBaseURL string
 	RemnawaveToken   string
+	EgamesCookie     string
 
 	// Access control settings
 	AllowedSquadID    string
@@ -28,6 +29,7 @@ func Load() (*Config, error) {
 		ServerPort:        getEnv("SERVER_PORT", "8000"),
 		RemnawaveBaseURL:  getEnv("REMNAWAVE_BASE_URL", ""),
 		RemnawaveToken:    getEnv("REMNAWAVE_TOKEN", ""),
+		EgamesCookie:      strings.TrimSpace(getEnv("EGAMES_COOKIE", "")),
 		AllowedSquadID:    getEnv("ALLOWED_SQUAD_ID", ""),
 		DefaultSquadID:    getEnv("DEFAULT_SQUAD_ID", ""),
 		BypassTag:         getEnv("BYPASS_TAG", "ADMIN"),

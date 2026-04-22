@@ -39,7 +39,7 @@ func main() {
 	}
 
 	// Создаем клиент Remnawave
-	remnawaveClient, err := client.NewRemnawaveClient(cfg.RemnawaveBaseURL, cfg.RemnawaveToken)
+	remnawaveClient, err := client.NewRemnawaveClient(cfg.RemnawaveBaseURL, cfg.RemnawaveToken, cfg.EgamesCookie)
 	if err != nil {
 		log.Fatalf("❌ Failed to create Remnawave client: %v", err)
 	}

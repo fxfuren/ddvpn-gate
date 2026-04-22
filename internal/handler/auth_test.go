@@ -71,7 +71,7 @@ func newTestAuthHandler(t *testing.T, responseBody string) *AuthHandler {
 	}))
 	t.Cleanup(server.Close)
 
-	remnawaveClient, err := client.NewRemnawaveClient(server.URL, "secret-token")
+	remnawaveClient, err := client.NewRemnawaveClient(server.URL, "secret-token", "")
 	if err != nil {
 		t.Fatalf("NewRemnawaveClient() error = %v", err)
 	}

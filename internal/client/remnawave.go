@@ -17,6 +17,7 @@ const remnawaveResponseLimit = 1 << 20
 type RemnawaveClient struct {
 	baseURL    string
 	token      string
+	egamesCookie string
 	httpClient *http.Client
 }
 
@@ -60,7 +61,7 @@ type apiErrorResponse struct {
 }
 
 // NewRemnawaveClient creates a new Remnawave client.
-func NewRemnawaveClient(baseURL, token string) (*RemnawaveClient, error) {
+func NewRemnawaveClient(baseURL, token, egamesCookie string) (*RemnawaveClient, error) {
 	parsedURL, err := url.Parse(baseURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse remnawave base URL: %w", err)
@@ -69,9 +70,15 @@ func NewRemnawaveClient(baseURL, token string) (*RemnawaveClient, error) {
 		return nil, fmt.Errorf("invalid remnawave base URL: %q", baseURL)
 	}
 
+	cookieHeader, err := normalizeCookieHeader(egamesCookie)
+	if err != nil {
+		return nil, err
+	}
+
 	return &RemnawaveClient{
-		baseURL: strings.TrimRight(baseURL, "/"),
-		token:   token,
+		baseURL:      strings.TrimRight(baseURL, "/"),
+		token:        token,
+		egamesCookie: cookieHeader,
 		httpClient: &http.Client{
 			Timeout: 15 * time.Second,
 		},
@@ -92,6 +99,9 @@ func (r *RemnawaveClient) GetUserByShortUUID(ctx context.Context, shortUUID stri
 
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Authorization", "Bearer "+r.token)
+	if r.egamesCookie != "" {
+		req.Header.Set("Cookie", r.egamesCookie)
+	}
 
 	resp, err := r.httpClient.Do(req)
 	if err != nil {
@@ -156,4 +166,24 @@ func extractAPIError(body []byte) string {
 	}
 
 	return bodyText
+}
+
+func normalizeCookieHeader(raw string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", nil
+	}
+
+	name, value, ok := strings.Cut(trimmed, "=")
+	if !ok {
+		return "", fmt.Errorf("invalid EGAMES_COOKIE format: expected key=value")
+	}
+
+	name = strings.TrimSpace(name)
+	value = strings.TrimSpace(value)
+	if name == "" || value == "" {
+		return "", fmt.Errorf("invalid EGAMES_COOKIE format: expected non-empty key and value")
+	}
+
+	return name + "=" + value, nil
 }

@@ -33,7 +33,7 @@ func TestGetUserByShortUUIDSupportsCurrentAPIResponse(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewRemnawaveClient(server.URL, "secret-token")
+	client, err := NewRemnawaveClient(server.URL, "secret-token", "")
 	if err != nil {
 		t.Fatalf("NewRemnawaveClient() error = %v", err)
 	}
@@ -78,7 +78,7 @@ func TestGetUserByShortUUIDKeepsBackwardCompatibility(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewRemnawaveClient(server.URL, "secret-token")
+	client, err := NewRemnawaveClient(server.URL, "secret-token", "")
 	if err != nil {
 		t.Fatalf("NewRemnawaveClient() error = %v", err)
 	}
@@ -107,7 +107,7 @@ func TestGetUserByShortUUIDIncludesHTTPStatusInError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewRemnawaveClient(server.URL, "secret-token")
+	client, err := NewRemnawaveClient(server.URL, "secret-token", "")
 	if err != nil {
 		t.Fatalf("NewRemnawaveClient() error = %v", err)
 	}
@@ -122,5 +122,41 @@ func TestGetUserByShortUUIDIncludesHTTPStatusInError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "user not found") {
 		t.Fatalf("expected error to include API message, got %q", err)
+	}
+}
+
+func TestGetUserByShortUUIDAddsCookieHeaderWhenConfigured(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Cookie"); got != "SjbGIfiP=jCMFSbdy" {
+			t.Fatalf("unexpected cookie header: %q", got)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"response":{"username":"alice","activeInternalSquads":[]}}`))
+	}))
+	defer server.Close()
+
+	client, err := NewRemnawaveClient(server.URL, "secret-token", "SjbGIfiP=jCMFSbdy")
+	if err != nil {
+		t.Fatalf("NewRemnawaveClient() error = %v", err)
+	}
+
+	if _, err := client.GetUserByShortUUID(context.Background(), "cookie-user"); err != nil {
+		t.Fatalf("GetUserByShortUUID() error = %v", err)
+	}
+}
+
+func TestNewRemnawaveClientRejectsInvalidCookieFormat(t *testing.T) {
+	t.Parallel()
+
+	_, err := NewRemnawaveClient("https://example.com", "secret-token", "invalid-cookie-format")
+	if err == nil {
+		t.Fatal("NewRemnawaveClient() error = nil, want non-nil")
+	}
+
+	if !strings.Contains(err.Error(), "invalid EGAMES_COOKIE format") {
+		t.Fatalf("expected cookie validation error, got %q", err)
 	}
 }
