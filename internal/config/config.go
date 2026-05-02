@@ -20,6 +20,7 @@ type Config struct {
 	AllowedSquadID    string
 	DefaultSquadID    string
 	BypassTag         string
+	BypassPCTag       string
 	AllowedClientApps []string
 }
 
@@ -33,6 +34,7 @@ func Load() (*Config, error) {
 		AllowedSquadID:    getEnv("ALLOWED_SQUAD_ID", ""),
 		DefaultSquadID:    getEnv("DEFAULT_SQUAD_ID", ""),
 		BypassTag:         getEnv("BYPASS_TAG", "ADMIN"),
+		BypassPCTag:       getEnv("BYPASS_PC_TAG", "BYPASS-PC"),
 		AllowedClientApps: parseCSVEnv(getEnv("ALLOWED_CLIENT_APPS", "")),
 	}
 

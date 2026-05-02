@@ -41,12 +41,20 @@ func NewAuthService(client *client.RemnawaveClient, cfg *config.Config, logger *
 
 // isTagAllowed проверяет, есть ли тег пользователя в списке разрешенных тегов
 func (s *AuthService) isTagAllowed(userTag string) bool {
+	return isTagInList(userTag, s.cfg.BypassTag)
+}
+
+func (s *AuthService) isPCTagAllowed(userTag string) bool {
+	return isTagInList(userTag, s.cfg.BypassPCTag)
+}
+
+func isTagInList(userTag, configuredTags string) bool {
 	if userTag == "" {
 		return false
 	}
 
 	// Парсим список разрешенных тегов из конфига
-	allowedTags := strings.Split(s.cfg.BypassTag, ",")
+	allowedTags := strings.Split(configuredTags, ",")
 
 	userTagTrimmed := strings.TrimSpace(userTag)
 
@@ -90,10 +98,14 @@ func (s *AuthService) VerifyClientAccess(req ClientRequest) AuthResult {
 		return AuthResult{Allowed: false, Reason: "client_app_not_allowed"}
 	}
 
-	if !isMobilePlatform(platform) {
+	if platform == "" {
 		s.logger.Warnf("⛔ ACCESS DENIED (Client Platform): User-Agent '%s', X-Device-OS '%s', detected platform '%s'",
 			req.UserAgent, req.DeviceOS, platform)
 		return AuthResult{Allowed: false, Reason: "client_platform_not_allowed"}
+	}
+
+	if !isMobilePlatform(platform) {
+		return AuthResult{Allowed: true, Reason: "desktop_client_needs_pc_tag"}
 	}
 
 	return AuthResult{Allowed: true, Reason: "mobile_client_allowed"}
@@ -190,6 +202,10 @@ func isMobilePlatform(platform string) bool {
 // VerifyAccess проверяет доступ пользователя (для /auth endpoint)
 // Проверяет тег ADMIN или соответствие external squad
 func (s *AuthService) VerifyAccess(ctx context.Context, shortUUID string) AuthResult {
+	return s.VerifyAccessWithPCRequirement(ctx, shortUUID, false)
+}
+
+func (s *AuthService) VerifyAccessWithPCRequirement(ctx context.Context, shortUUID string, requirePCTag bool) AuthResult {
 	user, err := s.client.GetUserByShortUUID(ctx, shortUUID)
 	if err != nil {
 		// Не логируем 404 ошибки (обычно это favicon/js запросы)
@@ -215,6 +231,12 @@ func (s *AuthService) VerifyAccess(ctx context.Context, shortUUID string) AuthRe
 	squadAllowed := strings.TrimSpace(s.cfg.AllowedSquadID)
 
 	if squadFromAPI != "" && squadFromAPI == squadAllowed {
+		if requirePCTag && !s.isPCTagAllowed(user.Tag) {
+			s.logger.Warnf("â›” ACCESS DENIED (PC Tag): User '%s'\n   Tag: '%s' (Expected PC: '%s')\n   Squad: '%s' (Expected: '%s')",
+				username, user.Tag, s.cfg.BypassPCTag, squadFromAPI, squadAllowed)
+			return AuthResult{Allowed: false, Reason: "pc_tag_required", User: username}
+		}
+
 		s.logger.Infof("✅ ACCESS GRANTED (Squad Match): User '%s'", username)
 		return AuthResult{Allowed: true, Reason: "squad_match", User: username}
 	}

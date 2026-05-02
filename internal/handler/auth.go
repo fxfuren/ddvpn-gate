@@ -52,7 +52,11 @@ func (h *AuthHandler) VerifyAccess(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Проверяем доступ
-	result := h.authService.VerifyAccess(r.Context(), shortUUID)
+	result := h.authService.VerifyAccessWithPCRequirement(
+		r.Context(),
+		shortUUID,
+		clientResult.Reason == "desktop_client_needs_pc_tag",
+	)
 	if result.Allowed {
 		w.WriteHeader(http.StatusOK)
 	} else {

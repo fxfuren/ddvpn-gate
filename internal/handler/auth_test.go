@@ -62,6 +62,78 @@ func TestVerifyAccessStillAppliesClientFilter(t *testing.T) {
 	}
 }
 
+func TestVerifyAccessAllowsMobileUserInAllowedSquadWithoutPCTag(t *testing.T) {
+	t.Parallel()
+
+	handler := newTestAuthHandler(t, `{
+		"response": {
+			"username": "mobile-user",
+			"tag": "BASIC",
+			"externalSquadUuid": "allowed-squad-uuid",
+			"activeInternalSquads": []
+		}
+	}`)
+
+	req := httptest.NewRequest(http.MethodGet, "/auth", nil)
+	req.Header.Set("X-Original-URI", "/GfWoC3deZHz45E3s")
+	req.Header.Set("User-Agent", "Happ/4.7.3/ios/2604120049648")
+	rec := httptest.NewRecorder()
+
+	handler.VerifyAccess(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected mobile user in allowed squad to return 200, got %d", rec.Code)
+	}
+}
+
+func TestVerifyAccessBlocksDesktopUserInAllowedSquadWithoutPCTag(t *testing.T) {
+	t.Parallel()
+
+	handler := newTestAuthHandler(t, `{
+		"response": {
+			"username": "desktop-user",
+			"tag": "BASIC",
+			"externalSquadUuid": "allowed-squad-uuid",
+			"activeInternalSquads": []
+		}
+	}`)
+
+	req := httptest.NewRequest(http.MethodGet, "/auth", nil)
+	req.Header.Set("X-Original-URI", "/GfWoC3deZHz45E3s")
+	req.Header.Set("User-Agent", "Happ/2.8.0/Windows/2604081205607")
+	rec := httptest.NewRecorder()
+
+	handler.VerifyAccess(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected desktop user without PC tag to return 403, got %d", rec.Code)
+	}
+}
+
+func TestVerifyAccessAllowsDesktopUserInAllowedSquadWithPCTag(t *testing.T) {
+	t.Parallel()
+
+	handler := newTestAuthHandler(t, `{
+		"response": {
+			"username": "desktop-user",
+			"tag": "BYPASS-PC",
+			"externalSquadUuid": "allowed-squad-uuid",
+			"activeInternalSquads": []
+		}
+	}`)
+
+	req := httptest.NewRequest(http.MethodGet, "/auth", nil)
+	req.Header.Set("X-Original-URI", "/GfWoC3deZHz45E3s")
+	req.Header.Set("User-Agent", "Happ/2.8.0/Windows/2604081205607")
+	rec := httptest.NewRecorder()
+
+	handler.VerifyAccess(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected desktop user with PC tag to return 200, got %d", rec.Code)
+	}
+}
+
 func newTestAuthHandler(t *testing.T, responseBody string) *AuthHandler {
 	t.Helper()
 
@@ -83,6 +155,7 @@ func newTestAuthHandler(t *testing.T, responseBody string) *AuthHandler {
 		AllowedSquadID:    "allowed-squad-uuid",
 		DefaultSquadID:    "default-squad-uuid",
 		BypassTag:         "ADMIN",
+		BypassPCTag:       "BYPASS-PC",
 		AllowedClientApps: []string{"happ", "v2raytun"},
 	}, log)
 

@@ -37,7 +37,7 @@ func TestVerifyClientAccessAllowsConfiguredMobileClient(t *testing.T) {
 	}
 }
 
-func TestVerifyClientAccessBlocksDesktopClient(t *testing.T) {
+func TestVerifyClientAccessAllowsDesktopClientForUserCheck(t *testing.T) {
 	t.Parallel()
 
 	service := newTestAuthService()
@@ -46,8 +46,8 @@ func TestVerifyClientAccessBlocksDesktopClient(t *testing.T) {
 		UserAgent: "Happ/2.8.0/Windows/2604081205607",
 	})
 
-	if result.Allowed {
-		t.Fatalf("expected desktop Happ request to be denied, got %+v", result)
+	if !result.Allowed || result.Reason != "desktop_client_needs_pc_tag" {
+		t.Fatalf("expected desktop Happ request to require PC tag, got %+v", result)
 	}
 }
 
@@ -87,5 +87,6 @@ func newTestAuthService() *AuthService {
 	return NewAuthService(nil, &config.Config{
 		AllowedClientApps: []string{"happ", "v2raytun"},
 		BypassTag:         "ADMIN",
+		BypassPCTag:       "BYPASS-PC",
 	}, log)
 }
