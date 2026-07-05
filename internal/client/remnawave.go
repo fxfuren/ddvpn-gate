@@ -218,10 +218,7 @@ func isNetworkError(err error) bool {
 
 // CheckAvailability ping the panel to check if it's reachable.
 func (r *RemnawaveClient) CheckAvailability(ctx context.Context) error {
-	// Ping the root or an api endpoint. Here we try fetching a non-existent user just to see if we get a 404 vs 5xx/network error.
-	// Alternatively, doing a GET to base url could work if it doesn't return 5xx normally.
-	// But /api/users/by-short-uuid/probe is safe: if alive it will likely return 401/403/404, which are all "available" states.
-	endpoint, err := url.JoinPath(r.baseURL, "api/users/by-short-uuid", "probe-health-check")
+	endpoint, err := url.JoinPath(r.baseURL, "api/system/health")
 	if err != nil {
 		return err
 	}
@@ -232,7 +229,6 @@ func (r *RemnawaveClient) CheckAvailability(ctx context.Context) error {
 	}
 	
 	req.Header.Set("Accept", "application/json")
-	// Omit token deliberately or provide it, providing is better to avoid fast-path 401 if we want to hit the database.
 	req.Header.Set("Authorization", "Bearer "+r.token)
 
 	resp, err := r.httpClient.Do(req)
