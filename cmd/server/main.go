@@ -44,8 +44,37 @@ func main() {
 		log.Fatalf("❌ Failed to create Remnawave client: %v", err)
 	}
 
+	panelState := service.NewPanelState()
+
 	// Создаем сервисы
-	authService := service.NewAuthService(remnawaveClient, cfg, log)
+	authService := service.NewAuthService(remnawaveClient, cfg, log, panelState)
+
+	// Фоновый процесс для проверки панели
+	probeCtx, cancelProbe := context.WithCancel(context.Background())
+	go func() {
+		ticker := time.NewTicker(15 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-probeCtx.Done():
+				return
+			case <-ticker.C:
+				if !panelState.IsAvailable() {
+					log.Info("🔄 Probing Remnawave panel to check if it's back online...")
+					probeTimeoutCtx, cancel := context.WithTimeout(probeCtx, 10*time.Second)
+					err := remnawaveClient.CheckAvailability(probeTimeoutCtx)
+					cancel()
+					
+					if err != nil {
+						log.Warnf("⚠️ Panel is still unavailable: %v", err)
+					} else {
+						log.Info("✅ Panel is back online. Restoring strict auth mode.")
+						panelState.MarkAvailable()
+					}
+				}
+			}
+		}
+	}()
 
 	// Создаем обработчики
 	healthHandler := handler.NewHealthHandler()
@@ -77,6 +106,7 @@ func main() {
 	<-quit
 
 	log.Info("🛑 Shutting down server...")
+	cancelProbe()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

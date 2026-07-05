@@ -3,13 +3,18 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 )
+
+// ErrPanelUnavailable indicates that the Remnawave panel is unreachable or returning 5xx errors.
+var ErrPanelUnavailable = errors.New("panel is unavailable")
 
 const remnawaveResponseLimit = 1 << 20
 
@@ -105,9 +110,17 @@ func (r *RemnawaveClient) GetUserByShortUUID(ctx context.Context, shortUUID stri
 
 	resp, err := r.httpClient.Do(req)
 	if err != nil {
+		if isNetworkError(err) {
+			return nil, fmt.Errorf("%w: %v", ErrPanelUnavailable, err)
+		}
 		return nil, fmt.Errorf("failed to get user by short uuid: %w", err)
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode >= http.StatusInternalServerError {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, remnawaveResponseLimit))
+		return nil, fmt.Errorf("%w: status %d: %s", ErrPanelUnavailable, resp.StatusCode, extractAPIError(body))
+	}
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, remnawaveResponseLimit))
@@ -186,4 +199,55 @@ func normalizeCookieHeader(raw string) (string, error) {
 	}
 
 	return name + "=" + value, nil
+}
+
+func isNetworkError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return true // Timeout, connection refused, DNS error, etc.
+	}
+	// Also treat generic context deadline/canceled as network error if they happen during dial/request.
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return true
+	}
+	return false
+}
+
+// CheckAvailability ping the panel to check if it's reachable.
+func (r *RemnawaveClient) CheckAvailability(ctx context.Context) error {
+	// Ping the root or an api endpoint. Here we try fetching a non-existent user just to see if we get a 404 vs 5xx/network error.
+	// Alternatively, doing a GET to base url could work if it doesn't return 5xx normally.
+	// But /api/users/by-short-uuid/probe is safe: if alive it will likely return 401/403/404, which are all "available" states.
+	endpoint, err := url.JoinPath(r.baseURL, "api/users/by-short-uuid", "probe-health-check")
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return err
+	}
+	
+	req.Header.Set("Accept", "application/json")
+	// Omit token deliberately or provide it, providing is better to avoid fast-path 401 if we want to hit the database.
+	req.Header.Set("Authorization", "Bearer "+r.token)
+
+	resp, err := r.httpClient.Do(req)
+	if err != nil {
+		if isNetworkError(err) {
+			return fmt.Errorf("%w: %v", ErrPanelUnavailable, err)
+		}
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= http.StatusInternalServerError {
+		return fmt.Errorf("%w: status %d", ErrPanelUnavailable, resp.StatusCode)
+	}
+
+	// 404, 401, 403, 200 are all considered "available"
+	return nil
 }

@@ -89,7 +89,7 @@ BYPASS_PC_TAG=BYPASS-PC
 
 # Клиентские приложения, которым разрешен доступ только к обходной подписке `/auth`
 # Браузеры с Accept: text/html пропускаются отдельно
-ALLOWED_CLIENT_APPS=Happ,v2raytun
+ALLOWED_CLIENT_APPS=Happ,v2raytun,INCY
 ```
 
 4️⃣ **Запустите сервис:**

@@ -33,6 +33,12 @@ func (h *AuthHandler) VerifyAccess(w http.ResponseWriter, r *http.Request) {
 
 	h.logger.Infof("🔍 Incoming request: %s", originalURI)
 
+	if !h.authService.IsPanelAvailable() {
+		h.logger.Infof("⚠️ Panel is unavailable, bypassing auth and client checks for %s", originalURI)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
 	clientResult := h.authService.VerifyClientAccess(service.ClientRequest{
 		Accept:    r.Header.Get("Accept"),
 		UserAgent: r.UserAgent(),
@@ -75,6 +81,12 @@ func (h *AuthHandler) VerifyDefaultAccess(w http.ResponseWriter, r *http.Request
 	}
 
 	h.logger.Infof("🔍 Incoming request (default): %s", originalURI)
+
+	if !h.authService.IsPanelAvailable() {
+		h.logger.Infof("⚠️ Panel is unavailable, bypassing auth checks for %s", originalURI)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
 
 	// Парсим shortUUID из URI
 	shortUUID, err := h.authService.ParseShortUUID(originalURI)

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/fxfuren/ddvpn-gate/internal/client"
@@ -25,18 +26,25 @@ type ClientRequest struct {
 
 // AuthService предоставляет методы для проверки авторизации
 type AuthService struct {
-	client *client.RemnawaveClient
-	cfg    *config.Config
-	logger *logrus.Logger
+	client     *client.RemnawaveClient
+	cfg        *config.Config
+	logger     *logrus.Logger
+	panelState *PanelState
 }
 
 // NewAuthService создает новый сервис авторизации
-func NewAuthService(client *client.RemnawaveClient, cfg *config.Config, logger *logrus.Logger) *AuthService {
+func NewAuthService(client *client.RemnawaveClient, cfg *config.Config, logger *logrus.Logger, panelState *PanelState) *AuthService {
 	return &AuthService{
-		client: client,
-		cfg:    cfg,
-		logger: logger,
+		client:     client,
+		cfg:        cfg,
+		logger:     logger,
+		panelState: panelState,
 	}
+}
+
+// IsPanelAvailable returns true if the panel is currently considered available.
+func (s *AuthService) IsPanelAvailable() bool {
+	return s.panelState.IsAvailable()
 }
 
 // isTagAllowed проверяет, есть ли тег пользователя в списке разрешенных тегов
@@ -85,6 +93,10 @@ func (s *AuthService) isClientAllowed(clientApp string) bool {
 
 // VerifyClientAccess проверяет, можно ли обслуживать запрос по client headers.
 func (s *AuthService) VerifyClientAccess(req ClientRequest) AuthResult {
+	if !s.panelState.IsAvailable() {
+		return AuthResult{Allowed: true, Reason: "panel_unavailable_bypass"}
+	}
+
 	if isBrowserRequest(req.Accept) {
 		return AuthResult{Allowed: true, Reason: "browser_request"}
 	}
@@ -208,6 +220,11 @@ func (s *AuthService) VerifyAccess(ctx context.Context, shortUUID string) AuthRe
 func (s *AuthService) VerifyAccessWithPCRequirement(ctx context.Context, shortUUID string, requirePCTag bool) AuthResult {
 	user, err := s.client.GetUserByShortUUID(ctx, shortUUID)
 	if err != nil {
+		if errors.Is(err, client.ErrPanelUnavailable) {
+			s.logger.Errorf("❌ Panel unavailable detected during auth check: %s", err)
+			s.panelState.MarkUnavailable(err)
+			return AuthResult{Allowed: true, Reason: "panel_unavailable_fallback"}
+		}
 		// Не логируем 404 ошибки (обычно это favicon/js запросы)
 		if !strings.Contains(err.Error(), "404") {
 			s.logger.Errorf("❌ API Error checking %s: %s", shortUUID, err)
@@ -252,6 +269,11 @@ func (s *AuthService) VerifyAccessWithPCRequirement(ctx context.Context, shortUU
 func (s *AuthService) VerifyDefaultAccess(ctx context.Context, shortUUID string) AuthResult {
 	user, err := s.client.GetUserByShortUUID(ctx, shortUUID)
 	if err != nil {
+		if errors.Is(err, client.ErrPanelUnavailable) {
+			s.logger.Errorf("❌ Panel unavailable detected during default auth check: %s", err)
+			s.panelState.MarkUnavailable(err)
+			return AuthResult{Allowed: true, Reason: "panel_unavailable_fallback"}
+		}
 		// Не логируем 404 ошибки
 		if !strings.Contains(err.Error(), "404") {
 			s.logger.Errorf("❌ API Error checking %s (default): %s", shortUUID, err)

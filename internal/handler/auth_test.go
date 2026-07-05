@@ -148,16 +148,19 @@ func newTestAuthHandler(t *testing.T, responseBody string) *AuthHandler {
 		t.Fatalf("NewRemnawaveClient() error = %v", err)
 	}
 
-	log := logrus.New()
-	log.SetOutput(io.Discard)
+	logger := logrus.New()
+	logger.SetOutput(io.Discard) // Disable logs during tests
 
-	authService := service.NewAuthService(remnawaveClient, &config.Config{
+	panelState := service.NewPanelState()
+
+	cfg := &config.Config{
 		AllowedSquadID:    "allowed-squad-uuid",
 		DefaultSquadID:    "default-squad-uuid",
 		BypassTag:         "ADMIN",
 		BypassPCTag:       "BYPASS-PC",
-		AllowedClientApps: []string{"happ", "v2raytun"},
-	}, log)
+		AllowedClientApps: []string{"happ", "v2raytun", "incy"},
+	}
 
-	return NewAuthHandler(authService, log)
+	authService := service.NewAuthService(remnawaveClient, cfg, logger, panelState)
+	return NewAuthHandler(authService, logger)
 }

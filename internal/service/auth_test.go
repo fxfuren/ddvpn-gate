@@ -85,8 +85,8 @@ func newTestAuthService() *AuthService {
 	log.SetOutput(io.Discard)
 
 	return NewAuthService(nil, &config.Config{
-		AllowedClientApps: []string{"happ", "v2raytun"},
+		AllowedClientApps: []string{"happ", "v2raytun", "incy"},
 		BypassTag:         "ADMIN",
 		BypassPCTag:       "BYPASS-PC",
-	}, log)
+	}, log, NewPanelState())
 }
