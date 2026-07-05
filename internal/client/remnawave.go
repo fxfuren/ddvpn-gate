@@ -230,6 +230,9 @@ func (r *RemnawaveClient) CheckAvailability(ctx context.Context) error {
 	
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Authorization", "Bearer "+r.token)
+	if r.egamesCookie != "" {
+		req.Header.Set("Cookie", r.egamesCookie)
+	}
 
 	resp, err := r.httpClient.Do(req)
 	if err != nil {
