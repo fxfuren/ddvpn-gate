@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -115,6 +116,10 @@ func TestGetUserByShortUUIDIncludesHTTPStatusInError(t *testing.T) {
 	_, err = client.GetUserByShortUUID(context.Background(), "missing-user")
 	if err == nil {
 		t.Fatal("GetUserByShortUUID() error = nil, want non-nil")
+	}
+
+	if !errors.Is(err, ErrUserNotFound) {
+		t.Fatalf("expected ErrUserNotFound, got %v", err)
 	}
 
 	if !strings.Contains(err.Error(), "status 404") {

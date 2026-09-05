@@ -134,11 +134,73 @@ func TestVerifyAccessAllowsDesktopUserInAllowedSquadWithPCTag(t *testing.T) {
 	}
 }
 
+func TestVerifyAccessPassesThroughNotFoundUser(t *testing.T) {
+	t.Parallel()
+
+	handler := newTestAuthHandlerWithStatus(t, http.StatusNotFound, `{"message":"user not found"}`)
+
+	req := httptest.NewRequest(http.MethodGet, "/auth", nil)
+	req.Header.Set("X-Original-URI", "/nonexistent-uuid")
+	req.Header.Set("User-Agent", "Happ/4.7.3/ios/2604120049648")
+	rec := httptest.NewRecorder()
+
+	handler.VerifyAccess(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected /auth to return 200 OK on user 404 passthrough, got %d", rec.Code)
+	}
+}
+
+func TestVerifyDefaultAccessPassesThroughNotFoundUser(t *testing.T) {
+	t.Parallel()
+
+	handler := newTestAuthHandlerWithStatus(t, http.StatusNotFound, `{"message":"user not found"}`)
+
+	req := httptest.NewRequest(http.MethodGet, "/auth-default", nil)
+	req.Header.Set("X-Original-URI", "/nonexistent-uuid")
+	rec := httptest.NewRecorder()
+
+	handler.VerifyDefaultAccess(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected /auth-default to return 200 OK on user 404 passthrough, got %d", rec.Code)
+	}
+}
+
+func TestVerifyAccessBlocksExistingUserNotInAllowedSquadAndNoTags(t *testing.T) {
+	t.Parallel()
+
+	handler := newTestAuthHandler(t, `{
+		"response": {
+			"username": "unauthorized-user",
+			"tag": "USER",
+			"externalSquadUuid": "other-squad-uuid",
+			"activeInternalSquads": []
+		}
+	}`)
+
+	req := httptest.NewRequest(http.MethodGet, "/auth", nil)
+	req.Header.Set("X-Original-URI", "/GfWoC3deZHz45E3s")
+	req.Header.Set("User-Agent", "Happ/4.7.3/ios/2604120049648")
+	rec := httptest.NewRecorder()
+
+	handler.VerifyAccess(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected /auth to return 403 for unauthorized user, got %d", rec.Code)
+	}
+}
+
 func newTestAuthHandler(t *testing.T, responseBody string) *AuthHandler {
+	return newTestAuthHandlerWithStatus(t, http.StatusOK, responseBody)
+}
+
+func newTestAuthHandlerWithStatus(t *testing.T, statusCode int, responseBody string) *AuthHandler {
 	t.Helper()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(statusCode)
 		_, _ = w.Write([]byte(responseBody))
 	}))
 	t.Cleanup(server.Close)

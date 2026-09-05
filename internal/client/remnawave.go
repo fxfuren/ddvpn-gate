@@ -14,7 +14,10 @@ import (
 )
 
 // ErrPanelUnavailable indicates that the Remnawave panel is unreachable or returning 5xx errors.
-var ErrPanelUnavailable = errors.New("panel is unavailable")
+var ErrPanelUnavailable = errors.New("panel is unreachable")
+
+// ErrUserNotFound indicates that the user was not found in Remnawave (404 Not Found).
+var ErrUserNotFound = errors.New("user not found")
 
 const remnawaveResponseLimit = 1 << 20
 
@@ -116,6 +119,11 @@ func (r *RemnawaveClient) GetUserByShortUUID(ctx context.Context, shortUUID stri
 		return nil, fmt.Errorf("failed to get user by short uuid: %w", err)
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, remnawaveResponseLimit))
+		return nil, fmt.Errorf("%w: status %d: %s", ErrUserNotFound, resp.StatusCode, extractAPIError(body))
+	}
 
 	if resp.StatusCode >= http.StatusInternalServerError {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, remnawaveResponseLimit))

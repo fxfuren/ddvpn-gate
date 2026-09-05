@@ -1,9 +1,13 @@
 package service
 
 import (
+	"context"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/fxfuren/ddvpn-gate/internal/client"
 	"github.com/fxfuren/ddvpn-gate/internal/config"
 	"github.com/sirupsen/logrus"
 )
@@ -89,4 +93,69 @@ func newTestAuthService() *AuthService {
 		BypassTag:         "ADMIN",
 		BypassPCTag:       "BYPASS-PC",
 	}, log, NewPanelState())
+}
+
+func TestVerifyAccessPassesThroughWhenUserNotFound(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, `{"message":"user not found"}`, http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	remnawaveClient, err := client.NewRemnawaveClient(server.URL, "secret-token", "")
+	if err != nil {
+		t.Fatalf("NewRemnawaveClient() error = %v", err)
+	}
+
+	log := logrus.New()
+	log.SetOutput(io.Discard)
+
+	cfg := &config.Config{
+		AllowedSquadID: "allowed-squad",
+		BypassTag:      "ADMIN",
+		BypassPCTag:    "BYPASS-PC",
+	}
+
+	svc := NewAuthService(remnawaveClient, cfg, log, NewPanelState())
+	result := svc.VerifyAccess(context.Background(), "nonexistent-user")
+
+	if !result.Allowed {
+		t.Fatalf("expected 404 to be allowed (passthrough), got %+v", result)
+	}
+	if result.Reason != "user_not_found_passthrough" {
+		t.Fatalf("expected reason 'user_not_found_passthrough', got %q", result.Reason)
+	}
+}
+
+func TestVerifyDefaultAccessPassesThroughWhenUserNotFound(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, `{"message":"user not found"}`, http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	remnawaveClient, err := client.NewRemnawaveClient(server.URL, "secret-token", "")
+	if err != nil {
+		t.Fatalf("NewRemnawaveClient() error = %v", err)
+	}
+
+	log := logrus.New()
+	log.SetOutput(io.Discard)
+
+	cfg := &config.Config{
+		DefaultSquadID: "default-squad",
+		BypassTag:      "ADMIN",
+	}
+
+	svc := NewAuthService(remnawaveClient, cfg, log, NewPanelState())
+	result := svc.VerifyDefaultAccess(context.Background(), "nonexistent-user")
+
+	if !result.Allowed {
+		t.Fatalf("expected 404 to be allowed (passthrough), got %+v", result)
+	}
+	if result.Reason != "user_not_found_passthrough" {
+		t.Fatalf("expected reason 'user_not_found_passthrough', got %q", result.Reason)
+	}
 }

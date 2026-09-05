@@ -225,10 +225,11 @@ func (s *AuthService) VerifyAccessWithPCRequirement(ctx context.Context, shortUU
 			s.panelState.MarkUnavailable(err)
 			return AuthResult{Allowed: true, Reason: "panel_unavailable_fallback"}
 		}
-		// Не логируем 404 ошибки (обычно это favicon/js запросы)
-		if !strings.Contains(err.Error(), "404") {
-			s.logger.Errorf("❌ API Error checking %s: %s", shortUUID, err)
+		if errors.Is(err, client.ErrUserNotFound) {
+			s.logger.Infof("ℹ️ User not found in Remnawave for %s, passing through to backend", shortUUID)
+			return AuthResult{Allowed: true, Reason: "user_not_found_passthrough"}
 		}
+		s.logger.Errorf("❌ API Error checking %s: %s", shortUUID, err)
 		return AuthResult{Allowed: false, Reason: "api_error"}
 	}
 
@@ -249,7 +250,7 @@ func (s *AuthService) VerifyAccessWithPCRequirement(ctx context.Context, shortUU
 
 	if squadFromAPI != "" && squadFromAPI == squadAllowed {
 		if requirePCTag && !s.isPCTagAllowed(user.Tag) {
-			s.logger.Warnf("â›” ACCESS DENIED (PC Tag): User '%s'\n   Tag: '%s' (Expected PC: '%s')\n   Squad: '%s' (Expected: '%s')",
+			s.logger.Warnf("⛔ ACCESS DENIED (PC Tag): User '%s'\n   Tag: '%s' (Expected PC: '%s')\n   Squad: '%s' (Expected: '%s')",
 				username, user.Tag, s.cfg.BypassPCTag, squadFromAPI, squadAllowed)
 			return AuthResult{Allowed: false, Reason: "pc_tag_required", User: username}
 		}
@@ -274,10 +275,11 @@ func (s *AuthService) VerifyDefaultAccess(ctx context.Context, shortUUID string)
 			s.panelState.MarkUnavailable(err)
 			return AuthResult{Allowed: true, Reason: "panel_unavailable_fallback"}
 		}
-		// Не логируем 404 ошибки
-		if !strings.Contains(err.Error(), "404") {
-			s.logger.Errorf("❌ API Error checking %s (default): %s", shortUUID, err)
+		if errors.Is(err, client.ErrUserNotFound) {
+			s.logger.Infof("ℹ️ User not found in Remnawave for %s (default), passing through to backend", shortUUID)
+			return AuthResult{Allowed: true, Reason: "user_not_found_passthrough"}
 		}
+		s.logger.Errorf("❌ API Error checking %s (default): %s", shortUUID, err)
 		return AuthResult{Allowed: false, Reason: "api_error"}
 	}
 
