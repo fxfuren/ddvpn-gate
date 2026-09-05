@@ -65,6 +65,8 @@ func (h *AuthHandler) VerifyAccess(w http.ResponseWriter, r *http.Request) {
 	)
 	if result.Allowed {
 		w.WriteHeader(http.StatusOK)
+	} else if result.Reason == "user_not_found" {
+		w.WriteHeader(http.StatusUnauthorized)
 	} else {
 		w.WriteHeader(http.StatusForbidden)
 	}
@@ -100,6 +102,8 @@ func (h *AuthHandler) VerifyDefaultAccess(w http.ResponseWriter, r *http.Request
 	result := h.authService.VerifyDefaultAccess(r.Context(), shortUUID)
 	if result.Allowed {
 		w.WriteHeader(http.StatusOK)
+	} else if result.Reason == "user_not_found" {
+		w.WriteHeader(http.StatusUnauthorized)
 	} else {
 		w.WriteHeader(http.StatusForbidden)
 	}

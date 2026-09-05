@@ -95,7 +95,7 @@ func newTestAuthService() *AuthService {
 	}, log, NewPanelState())
 }
 
-func TestVerifyAccessPassesThroughWhenUserNotFound(t *testing.T) {
+func TestVerifyAccessReturnsUserNotFound(t *testing.T) {
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -120,15 +120,15 @@ func TestVerifyAccessPassesThroughWhenUserNotFound(t *testing.T) {
 	svc := NewAuthService(remnawaveClient, cfg, log, NewPanelState())
 	result := svc.VerifyAccess(context.Background(), "nonexistent-user")
 
-	if !result.Allowed {
-		t.Fatalf("expected 404 to be allowed (passthrough), got %+v", result)
+	if result.Allowed {
+		t.Fatalf("expected user not found to be denied, got %+v", result)
 	}
-	if result.Reason != "user_not_found_passthrough" {
-		t.Fatalf("expected reason 'user_not_found_passthrough', got %q", result.Reason)
+	if result.Reason != "user_not_found" {
+		t.Fatalf("expected reason 'user_not_found', got %q", result.Reason)
 	}
 }
 
-func TestVerifyDefaultAccessPassesThroughWhenUserNotFound(t *testing.T) {
+func TestVerifyDefaultAccessReturnsUserNotFound(t *testing.T) {
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -152,10 +152,10 @@ func TestVerifyDefaultAccessPassesThroughWhenUserNotFound(t *testing.T) {
 	svc := NewAuthService(remnawaveClient, cfg, log, NewPanelState())
 	result := svc.VerifyDefaultAccess(context.Background(), "nonexistent-user")
 
-	if !result.Allowed {
-		t.Fatalf("expected 404 to be allowed (passthrough), got %+v", result)
+	if result.Allowed {
+		t.Fatalf("expected user not found to be denied, got %+v", result)
 	}
-	if result.Reason != "user_not_found_passthrough" {
-		t.Fatalf("expected reason 'user_not_found_passthrough', got %q", result.Reason)
+	if result.Reason != "user_not_found" {
+		t.Fatalf("expected reason 'user_not_found', got %q", result.Reason)
 	}
 }

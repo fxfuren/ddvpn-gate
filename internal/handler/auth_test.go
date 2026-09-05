@@ -134,7 +134,7 @@ func TestVerifyAccessAllowsDesktopUserInAllowedSquadWithPCTag(t *testing.T) {
 	}
 }
 
-func TestVerifyAccessPassesThroughNotFoundUser(t *testing.T) {
+func TestVerifyAccessReturns401OnUserNotFound(t *testing.T) {
 	t.Parallel()
 
 	handler := newTestAuthHandlerWithStatus(t, http.StatusNotFound, `{"message":"user not found"}`)
@@ -146,12 +146,12 @@ func TestVerifyAccessPassesThroughNotFoundUser(t *testing.T) {
 
 	handler.VerifyAccess(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected /auth to return 200 OK on user 404 passthrough, got %d", rec.Code)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected /auth to return 401 Unauthorized for user not found, got %d", rec.Code)
 	}
 }
 
-func TestVerifyDefaultAccessPassesThroughNotFoundUser(t *testing.T) {
+func TestVerifyDefaultAccessReturns401OnUserNotFound(t *testing.T) {
 	t.Parallel()
 
 	handler := newTestAuthHandlerWithStatus(t, http.StatusNotFound, `{"message":"user not found"}`)
@@ -162,8 +162,8 @@ func TestVerifyDefaultAccessPassesThroughNotFoundUser(t *testing.T) {
 
 	handler.VerifyDefaultAccess(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected /auth-default to return 200 OK on user 404 passthrough, got %d", rec.Code)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected /auth-default to return 401 Unauthorized for user not found, got %d", rec.Code)
 	}
 }
 

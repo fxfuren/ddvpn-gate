@@ -15,16 +15,14 @@
 ## ⚠️ Инварианты Nginx `auth_request`
 
 1. **Семантика статус-кодов**:
-   - `2xx` — доступ разрешен, Nginx проксирует оригинальный запрос на backend (`proxy_pass http://remnawave:3000`).
-   - `401` и `403` — доступ запрещен, Nginx возвращает клиенту 401 или 403 соответственно.
-   - **Любой другой код (включая 404 и 5xx)** — Nginx считает ошибкой модуля авторизации и возвращает клиенту `500 Internal Server Error`.
-2. **Правило 404 Passthrough**:
-   - `ddvpn-gate` **никогда не должен возвращать 404 в ответ на подзапрос Nginx**.
-   - Если Remnawave API вернул 404 (пользователь не найден, `client.ErrUserNotFound`), сервис возвращает `HTTP 200 OK` (`Allowed: true`, `Reason: "user_not_found_passthrough"`). Nginx передает запрос дальше панели Remnawave, которая нативно отдает страницу 404 (активируя `error_page 404 /error/404.html;`).
-3. **Fail-Open при сбое Remnawave**:
+   - `2xx` — доступ разрешен, Nginx проксирует оригинальный запрос на backend.
+   - `401` — пользователь не найден в Remnawave (`client.ErrUserNotFound`, `user_not_found`). Nginx перехватывает этот статус директивой `error_page 401 =404 /error/404.html;`, подменяет HTTP-код на 404 и отдает страницу ошибки напрямую, не обращаясь к бэкенду подписок (который намеренно сбрасывает TCP-сокет через `res.socket?.destroy()`, вызывая 502/500).
+   - `403` — доступ запрещен (не совпадает squad, отсутствует bypass-тег). Nginx отдает клиенту 403 (`error_page 403 /error/403.html;`).
+   - **Любой другой код (включая прямой 404 и 5xx)** — модуль Nginx `auth_request` считает сбоем авторизатора и немедленно возвращает клиенту `500 Internal Server Error`. Прямой 404 из `ddvpn-gate` возвращать **нельзя**.
+2. **Fail-Open при сбое Remnawave**:
    - При сетевых сбоях или 5xx ошибках от Remnawave (`client.ErrPanelUnavailable`) срабатывает `panelState.MarkUnavailable()`.
    - В этом состоянии сервис возвращает `HTTP 200 OK` (`panel_unavailable_fallback` / `panel_unavailable_bypass`), предотвращая отказ в обслуживании пользователей при временной недоступности панели.
-4. **Конфигурация Nginx subrequest**:
+3. **Конфигурация Nginx subrequest**:
    - Директива `internal;` обязательна для location `/_auth_check`.
    - `proxy_pass_request_body off;` и `proxy_set_header Content-Length "";` предотвращают зависание буфера при POST/PUT запросах.
    - Обязательна передача `proxy_set_header X-Original-URI $request_uri;`.

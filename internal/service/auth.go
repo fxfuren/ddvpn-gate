@@ -226,8 +226,8 @@ func (s *AuthService) VerifyAccessWithPCRequirement(ctx context.Context, shortUU
 			return AuthResult{Allowed: true, Reason: "panel_unavailable_fallback"}
 		}
 		if errors.Is(err, client.ErrUserNotFound) {
-			s.logger.Infof("ℹ️ User not found in Remnawave for %s, passing through to backend", shortUUID)
-			return AuthResult{Allowed: true, Reason: "user_not_found_passthrough"}
+			s.logger.Infof("ℹ️ User not found in Remnawave for %s (returning 401 for Nginx 404 translation)", shortUUID)
+			return AuthResult{Allowed: false, Reason: "user_not_found"}
 		}
 		s.logger.Errorf("❌ API Error checking %s: %s", shortUUID, err)
 		return AuthResult{Allowed: false, Reason: "api_error"}
@@ -276,8 +276,8 @@ func (s *AuthService) VerifyDefaultAccess(ctx context.Context, shortUUID string)
 			return AuthResult{Allowed: true, Reason: "panel_unavailable_fallback"}
 		}
 		if errors.Is(err, client.ErrUserNotFound) {
-			s.logger.Infof("ℹ️ User not found in Remnawave for %s (default), passing through to backend", shortUUID)
-			return AuthResult{Allowed: true, Reason: "user_not_found_passthrough"}
+			s.logger.Infof("ℹ️ User not found in Remnawave for %s (default, returning 401 for Nginx 404 translation)", shortUUID)
+			return AuthResult{Allowed: false, Reason: "user_not_found"}
 		}
 		s.logger.Errorf("❌ API Error checking %s (default): %s", shortUUID, err)
 		return AuthResult{Allowed: false, Reason: "api_error"}

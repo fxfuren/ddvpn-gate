@@ -111,9 +111,10 @@ graph LR
     C -->|Browser или mobile client| D[Parse shortUuid]
     C -->|Desktop / unknown client| G[⛔ HTTP 403 Forbidden]
     D --> E[Remnawave API]
-    E -->|404 Not Found| H[✅ HTTP 200 OK Passthrough]
+    E -->|404 Not Found| J[⚠️ HTTP 401 Unauthorized]
+    J -->|error_page 401 =404| K[📄 404.html]
     E -->|User Data| F{Проверка доступа}
-    F -->|Tag = ADMIN| H
+    F -->|Tag = ADMIN| H[✅ HTTP 200 OK]
     F -->|Squad Match| H
     F -->|Нет совпадений| G
 ```
@@ -124,12 +125,12 @@ graph LR
 2. 🛡️ **Проверка клиента**: Только для `/auth` разрешает браузеры (`Accept: text/html`) и мобильные клиенты из `ALLOWED_CLIENT_APPS` на `iOS` или `Android`
 3. 🔍 **Парсинг UUID**: Извлекает `shortUuid` из конца URL
 4. 🌐 **API запрос**: Получает данные пользователя через Remnawave API
-5. 🔀 **Passthrough при 404**: Если Remnawave возвращает 404 Not Found (пользователь не найден), сервис возвращает HTTP 200 OK, позволяя Nginx проксировать запрос к бэкенду Remnawave для нативной отдачи 404 страницы (и срабатывания директивы `error_page 404`)
+5. 🔍 **Пользователь не найден**: Если Remnawave возвращает 404 Not Found (пользователь не найден), сервис возвращает `HTTP 401 Unauthorized`. Nginx перехватывает его через `error_page 401 =404 /error/404.html;` и отдает страницу 404 напрямую пользователю, минуя бэкенд страниц подписки (который аварийно сбрасывает TCP-соединение при неизвестном UUID)
 6. ✅ **Проверка доступа**: Разрешает доступ (HTTP 200), если:
    - У пользователя есть тег `ADMIN` (или другой указанный в `BYPASS_TAG`)
    - **ИЛИ** `externalSquadUuid` пользователя совпадает с `ALLOWED_SQUAD_ID` (для `/auth`) или `DEFAULT_SQUAD_ID` присутствует в `activeInternalSquads` (для `/auth-default`)
    - Для PC-клиента дополнительно нужен тег `BYPASS-PC` (или другой указанный в `BYPASS_PC_TAG`)
-7. ⛔ **Запрет доступа**: В противном случае возвращает HTTP 403
+7. ⛔ **Запрет доступа**: В противном случае возвращает HTTP 403 (Nginx отдает `403.html`)
 
 ---
 
@@ -149,10 +150,24 @@ location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|json)$ {
     proxy_set_header X-Forwarded-Proto $scheme;
 }
 
+# Обработка страниц ошибок
+error_page 401 =404 /error/404.html;
+error_page 403 /error/403.html;
+error_page 404 /error/404.html;
+error_page 500 502 503 504 /error/500.html;
+
+location ^~ /error/assets/ {
+    root /var/www/html;
+}
+
+location ^~ /error/ {
+    internal;
+    root /var/www/html;
+}
+
 # Основной location для защищенного контента
 location / {
     auth_request /_auth_check;
-    error_page 404 /error/404.html;
 
     proxy_pass http://json; # Remnawave Subscription Page
 
@@ -185,6 +200,21 @@ server {
         proxy_pass http://127.0.0.1:8099/health;
     }
 
+    # Обработка страниц ошибок
+    error_page 401 =404 /error/404.html;
+    error_page 403 /error/403.html;
+    error_page 404 /error/404.html;
+    error_page 500 502 503 504 /error/500.html;
+
+    location ^~ /error/assets/ {
+        root /var/www/html;
+    }
+
+    location ^~ /error/ {
+        internal;
+        root /var/www/html;
+    }
+
     # Статические файлы без проверки авторизации (ВАЖНО: должно быть ПЕРЕД location /)
     location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|json)$ {
         proxy_pass http://remnawave:3000;
@@ -198,7 +228,6 @@ server {
     location / {
         auth_request /_auth_check;
         auth_request_set $auth_status $upstream_status;
-        error_page 404 /error/404.html;
 
         proxy_pass http://remnawave:3000;
         proxy_set_header Host $host;
@@ -242,6 +271,21 @@ server {
 
     add_header X-Robots-Tag "noindex, nofollow, noarchive, nosnippet, noimageindex" always;
 
+    # Обработка страниц ошибок
+    error_page 401 =404 /error/404.html;
+    error_page 403 /error/403.html;
+    error_page 404 /error/404.html;
+    error_page 500 502 503 504 /error/500.html;
+
+    location ^~ /error/assets/ {
+        root /var/www/html;
+    }
+
+    location ^~ /error/ {
+        internal;
+        root /var/www/html;
+    }
+
     location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|json)$ {
         proxy_pass http://127.0.0.1:3010;
         proxy_set_header Host $host;
@@ -252,7 +296,6 @@ server {
 
     location / {
         auth_request /_auth_check;
-        error_page 404 /error/404.html;
         proxy_pass http://127.0.0.1:3010;
 
         proxy_set_header Host $host;
